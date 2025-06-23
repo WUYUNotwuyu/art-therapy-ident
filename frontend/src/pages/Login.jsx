@@ -11,6 +11,14 @@ const Login = () => {
   const handleGoogleSignIn = async () => {
     setLoading(true);
     try {
+      if (!auth || !googleProvider) {
+        console.log('Firebase not configured, using demo login');
+        setTimeout(() => {
+          navigate('/');
+        }, 1000);
+        return;
+      }
+
       await signInWithPopup(auth, googleProvider);
       navigate('/');
     } catch (error) {
