@@ -3,6 +3,9 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 import os
 import logging
+from .config import get_firebase_credentials
+
+logger = logging.getLogger(__name__)
 
 try:
     import firebase_admin
@@ -11,36 +14,44 @@ try:
     
     # Initialize Firebase Admin SDK
     if not firebase_admin._apps:
-        # In production, use a service account key file
-        # For development, you can use the default credentials
-        try:
-            # Try to initialize with default credentials
-            firebase_admin.initialize_app()
-            logger = logging.getLogger(__name__)
-            logger.info("Firebase Admin SDK initialized with default credentials")
-        except Exception as e:
-            logger = logging.getLogger(__name__)
-            logger.warning(f"Could not initialize Firebase Admin SDK: {e}")
-            firebase_admin = None
+        firebase_creds = get_firebase_credentials()
+        
+        if firebase_creds:
+            # Use service account credentials
+            cred = credentials.Certificate(firebase_creds)
+            firebase_admin.initialize_app(cred)
+            logger.info("Firebase Admin SDK initialized with service account credentials")
+        else:
+            # Try default credentials as fallback
+            try:
+                firebase_admin.initialize_app()
+                logger.info("Firebase Admin SDK initialized with default credentials")
+            except Exception as e:
+                logger.error(f"Could not initialize Firebase Admin SDK: {e}")
+                raise Exception("Firebase authentication is required for production")
     
     FIREBASE_AVAILABLE = True
     
 except ImportError:
-    logger = logging.getLogger(__name__)
-    logger.warning("Firebase Admin SDK not available")
-    FIREBASE_AVAILABLE = False
-    firebase_admin = None
+    logger.error("Firebase Admin SDK not available - authentication required for production")
+    raise ImportError("Firebase Admin SDK is required for production")
+except Exception as e:
+    logger.error(f"Firebase initialization failed: {e}")
+    raise Exception("Firebase authentication setup failed")
 
-security = HTTPBearer(auto_error=False)
+security = HTTPBearer(auto_error=True)
 
-async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)) -> Optional[User]:
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> User:
     """
     Get current user from Firebase token.
-    Returns None if no token provided or Firebase not available (for development).
+    Requires valid authentication token.
     """
-    if not credentials or not FIREBASE_AVAILABLE:
-        # Return None for development mode without Firebase
-        return None
+    if not credentials:
+        raise HTTPException(
+            status_code=401, 
+            detail="Authentication token required",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
     
     try:
         # Verify the token with Firebase
@@ -52,16 +63,46 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
             name=decoded_token.get('name')
         )
         
+    except auth.ExpiredIdTokenError:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication token expired",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    except auth.InvalidIdTokenError:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid authentication token",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
     except Exception as e:
-        # For development, we'll be lenient with auth errors
-        logger = logging.getLogger(__name__)
-        logger.warning(f"Authentication error (development mode): {e}")
-        return None
+        logger.error(f"Authentication error: {e}")
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication failed",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
 
-async def require_user(current_user: Optional[User] = Depends(get_current_user)) -> User:
+async def require_user(current_user: User = Depends(get_current_user)) -> User:
     """
     Require a valid user to be authenticated.
     """
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    return current_user 
+    return current_user
+
+# Optional user dependency for endpoints that work with or without auth
+async def get_optional_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False))) -> Optional[User]:
+    """
+    Get current user if token is provided, otherwise return None.
+    """
+    if not credentials:
+        return None
+    
+    try:
+        decoded_token = auth.verify_id_token(credentials.credentials)
+        return User(
+            uid=decoded_token['uid'],
+            email=decoded_token.get('email'),
+            name=decoded_token.get('name')
+        )
+    except Exception:
+        return None 

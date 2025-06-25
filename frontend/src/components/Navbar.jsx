@@ -8,27 +8,19 @@ const Navbar = ({ user, coins, isDarkMode, setIsDarkMode }) => {
 
   const handleSignOut = async () => {
     try {
-      if (!auth) {
-        // Firebase not configured, just nav to login
-        navigate('/login');
-        return;
-      }
+      // Clear stored auth token
+      localStorage.removeItem('authToken');
       
       await signOut(auth);
       navigate('/login');
     } catch (error) {
       console.error('Error signing out:', error);
+      alert('Failed to sign out. Please try again.');
     }
   };
 
   return (
-    <>
-      {!auth && (
-        <div className="fixed top-0 left-0 right-0 bg-orange-500 text-white text-center py-1 text-sm z-50">
-          🚧 Demo Mode - Firebase not configured
-        </div>
-      )}
-      <nav className={`fixed ${!auth ? 'top-7' : 'top-0'} left-0 right-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-700 z-40`}>
+    <nav className="fixed top-0 left-0 right-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-700 z-40">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center space-x-8">
@@ -85,7 +77,6 @@ const Navbar = ({ user, coins, isDarkMode, setIsDarkMode }) => {
         </div>
       </div>
     </nav>
-    </>
   );
 };
 

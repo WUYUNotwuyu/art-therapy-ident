@@ -11,19 +11,28 @@ const Login = () => {
   const handleGoogleSignIn = async () => {
     setLoading(true);
     try {
-      if (!auth || !googleProvider) {
-        console.log('Firebase not configured, using demo login');
-        setTimeout(() => {
-          navigate('/');
-        }, 1000);
-        return;
-      }
-
-      await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      
+      // Get the ID token to send to backend
+      const idToken = await user.getIdToken();
+      
+      // Store the token for API requests
+      localStorage.setItem('authToken', idToken);
+      
+      console.log('Successfully signed in:', user.displayName);
       navigate('/');
     } catch (error) {
       console.error('Error signing in:', error);
-      alert('Failed to sign in. Please try again.');
+      let errorMessage = 'Failed to sign in. Please try again.';
+      
+      if (error.code === 'auth/popup-closed-by-user') {
+        errorMessage = 'Sign-in was cancelled.';
+      } else if (error.code === 'auth/popup-blocked') {
+        errorMessage = 'Pop-up was blocked. Please allow pop-ups and try again.';
+      }
+      
+      alert(errorMessage);
     } finally {
       setLoading(false);
     }

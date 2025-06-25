@@ -16,12 +16,6 @@ function App() {
   const { coins, changeCoins } = useCoins();
 
   useEffect(() => {
-    if (!auth) {
-      setUser({ displayName: 'Demo User', photoURL: null, uid: 'demo-user' });
-      setLoading(false);
-      return;
-    }
-
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setLoading(false);
@@ -66,7 +60,7 @@ function App() {
               isDarkMode={isDarkMode} 
               setIsDarkMode={setIsDarkMode} 
             />
-            <main className={`${!auth ? 'pt-24' : 'pt-16'}`}>
+            <main className="pt-16">
               <Routes>
                 <Route path="/" element={<Dashboard changeCoins={changeCoins} />} />
                 <Route path="/mood" element={<Dashboard changeCoins={changeCoins} />} />

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ping } from '../utils/api';
 
 const TestApi = () => {
   const [status, setStatus] = useState('idle');
@@ -7,8 +8,7 @@ const TestApi = () => {
   const testPing = async () => {
     setStatus('loading');
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/ping`);
-      const data = await res.json();
+      const data = await ping();
       setResponse(data);
       setStatus('success');
     } catch (error) {

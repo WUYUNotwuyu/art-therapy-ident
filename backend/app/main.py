@@ -11,7 +11,7 @@ import random
 
 from .models import MoodPrediction, PingResponse
 from .mood_analyzer import MoodAnalyzer
-from .auth import get_current_user, User
+from .auth import get_current_user, require_user, get_optional_user, User
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -48,7 +48,7 @@ async def ping():
 @app.post("/predict", response_model=MoodPrediction)
 async def predict_mood(
     image: UploadFile = File(...),
-    user: Optional[User] = Depends(get_current_user)
+    user: User = Depends(require_user)
 ):
     """
     Analyze an artwork image and predict the mood
@@ -74,7 +74,7 @@ async def predict_mood(
         # Analyze the mood
         mood, confidence = mood_analyzer.analyze_mood(image_array)
         
-        logger.info(f"Predicted mood: {mood} with confidence: {confidence}")
+        logger.info(f"User {user.uid} - Predicted mood: {mood} with confidence: {confidence}")
         
         return MoodPrediction(
             mood=mood,
