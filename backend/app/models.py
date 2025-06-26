@@ -7,6 +7,8 @@ class MoodType(str, Enum):
     SAD = "Sad"
     CALM = "Calm"
     ANGRY = "Angry"
+    ANXIOUS = "Anxious"
+    EXCITED = "Excited"
 
 class PingResponse(BaseModel):
     message: str

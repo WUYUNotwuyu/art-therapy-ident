@@ -10,7 +10,7 @@ from typing import Optional
 import random
 
 from .models import MoodPrediction, PingResponse
-from .mood_analyzer import MoodAnalyzer
+from .mood_analyzer import get_mood_analyzer
 from .auth import get_current_user, require_user, get_optional_user, User
 
 # Setup logging
@@ -33,8 +33,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize mood analyzer
-mood_analyzer = MoodAnalyzer()
+# Mood analyzer will be initialized lazily when first used
 
 @app.get("/ping", response_model=PingResponse)
 async def ping():
@@ -48,7 +47,7 @@ async def ping():
 @app.post("/predict", response_model=MoodPrediction)
 async def predict_mood(
     image: UploadFile = File(...),
-    user: User = Depends(require_user)
+    user: Optional[User] = Depends(get_optional_user)
 ):
     """
     Analyze an artwork image and predict the mood
@@ -71,19 +70,19 @@ async def predict_mood(
         # Convert to numpy array for analysis
         image_array = np.array(pil_image)
         
-        # Analyze the mood
-        mood, confidence = mood_analyzer.analyze_mood(image_array)
+        # Get CLIP mood analyzer instance
+        analyzer = get_mood_analyzer()
         
-        logger.info(f"User {user.uid} - Predicted mood: {mood} with confidence: {confidence}")
+        # Analyze the mood using CLIP
+        mood, confidence = analyzer.analyze_mood(image_array)
+        
+        user_id = user.uid if user else "anonymous"
+        logger.info(f"User {user_id} - CLIP Analysis - Mood: {mood} with confidence: {confidence:.2f}")
         
         return MoodPrediction(
             mood=mood,
             confidence=confidence,
-            analysis_details={
-                "color_dominance": mood_analyzer.get_color_analysis(image_array),
-                "stroke_complexity": mood_analyzer.get_stroke_analysis(image_array),
-                "composition": mood_analyzer.get_composition_analysis(image_array)
-            }
+            analysis_details=analyzer.get_mood_analysis_details(image_array)
         )
         
     except Exception as e:
@@ -93,13 +92,19 @@ async def predict_mood(
 @app.get("/moods")
 async def get_available_moods():
     """Get list of available mood categories"""
+    analyzer = get_mood_analyzer()
+    available_moods = analyzer.get_available_moods()
+    
     return {
-        "moods": ["Happy", "Sad", "Calm", "Angry"],
+        "moods": available_moods,
+        "method": "CLIP Semantic Analysis",
         "descriptions": {
-            "Happy": "Positive, joyful emotions expressed through bright colors and energetic strokes",
-            "Sad": "Melancholic feelings shown through cooler tones and slower movements", 
-            "Calm": "Peaceful, serene state reflected in balanced composition and gentle colors",
-            "Angry": "Intense emotions displayed through aggressive strokes and bold colors"
+            "Happy": "Joyful emotions detected through semantic understanding of visual content",
+            "Sad": "Melancholic feelings identified via AI visual-text correlation", 
+            "Calm": "Peaceful states recognized through CLIP's multimodal analysis",
+            "Angry": "Intense emotions detected using advanced semantic similarity",
+            "Anxious": "Nervous energy identified through AI pattern recognition",
+            "Excited": "Dynamic enthusiasm detected via multimodal AI analysis"
         }
     }
 
@@ -107,12 +112,30 @@ async def get_available_moods():
 async def health_check():
     """Detailed health check"""
     from datetime import datetime
+    import torch
+    
+    try:
+        analyzer = get_mood_analyzer()
+        clip_ready = True
+    except Exception as e:
+        logger.error(f"CLIP model not ready: {e}")
+        clip_ready = False
+    
     return {
         "status": "healthy",
         "services": {
-            "mood_analyzer": mood_analyzer.is_ready(),
+            "clip_model": clip_ready,
+            "pytorch": True,
+            "gpu_acceleration": torch.backends.mps.is_available() or torch.cuda.is_available(),
             "api": True
         },
+        "model_info": {
+            "type": "OpenAI CLIP ViT-B/32",
+            "method": "Cosine Similarity Analysis",
+            "device": analyzer.device if clip_ready else "unknown",
+            "mps_available": torch.backends.mps.is_available(),
+            "cuda_available": torch.cuda.is_available()
+        } if clip_ready else {},
         "timestamp": datetime.now().isoformat()
     }
 

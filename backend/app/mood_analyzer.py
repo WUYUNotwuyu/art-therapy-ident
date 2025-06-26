@@ -1,277 +1,274 @@
 import numpy as np
 import cv2
-from typing import Tuple, Dict, Any
+from PIL import Image
+import torch
+import clip
+from typing import Tuple, Dict, List
 import logging
-from sklearn.cluster import KMeans
-import random
+from io import BytesIO
 
 logger = logging.getLogger(__name__)
 
-class MoodAnalyzer:
+class CLIPMoodAnalyzer:
     """
-    Advanced mood analysis system that analyzes artwork to predict emotional states.
-    Uses computer vision techniques to analyze color, composition, and stroke patterns.
+    CLIP-based mood analyzer that uses cosine similarity between image and text embeddings
+    to classify the sentiment/mood of artwork.
     """
     
     def __init__(self):
-        self.moods = ["Happy", "Sad", "Calm", "Angry"]
-        self.ready = True
+        # Prioritize MPS (Metal Performance Shaders) for Apple Silicon, then CUDA, then CPU
+        if torch.backends.mps.is_available():
+            self.device = "mps"
+            logger.info("Using Apple Silicon GPU (MPS) for CLIP inference")
+        elif torch.cuda.is_available():
+            self.device = "cuda"
+            logger.info("Using NVIDIA GPU (CUDA) for CLIP inference")
+        else:
+            self.device = "cpu"
+            logger.info("Using CPU for CLIP inference")
         
-        # Color associations for moods
-        self.mood_colors = {
-            "Happy": {
-                "warm_colors": 0.7,
-                "bright_colors": 0.8,
-                "saturation": 0.6
-            },
-            "Sad": {
-                "cool_colors": 0.7,
-                "dark_colors": 0.6,
-                "saturation": 0.3
-            },
-            "Calm": {
-                "green_blue": 0.6,
-                "balanced_colors": 0.7,
-                "saturation": 0.5
-            },
-            "Angry": {
-                "red_colors": 0.8,
-                "high_contrast": 0.7,
-                "saturation": 0.8
-            }
+        logger.info(f"Initializing CLIP model on device: {self.device}")
+        
+        # Load CLIP model
+        try:
+            self.model, self.preprocess = clip.load("ViT-B/32", device=self.device)
+            logger.info("CLIP model loaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to load CLIP model: {e}")
+            raise
+        
+        # Define mood categories with detailed descriptions
+        self.mood_descriptions = {
+            "Happy": [
+                "a joyful and cheerful artwork",
+                "bright and vibrant colors expressing happiness",
+                "optimistic and uplifting art",
+                "artwork showing joy and contentment",
+                "colorful and energetic drawing expressing happiness"
+            ],
+            "Sad": [
+                "a melancholic and sorrowful artwork",
+                "dark and muted colors expressing sadness",
+                "artwork showing grief and sorrow",
+                "depressing and gloomy art",
+                "artwork expressing loneliness and sadness"
+            ],
+            "Calm": [
+                "a peaceful and tranquil artwork",
+                "serene and balanced composition",
+                "artwork showing relaxation and peace",
+                "meditative and calming art",
+                "harmonious and gentle artwork"
+            ],
+            "Angry": [
+                "an aggressive and intense artwork",
+                "chaotic and turbulent composition",
+                "artwork showing anger and frustration",
+                "violent and aggressive art",
+                "artwork with sharp and harsh elements expressing rage"
+            ],
+            "Anxious": [
+                "a nervous and worried artwork",
+                "chaotic and scattered composition",
+                "artwork showing stress and anxiety",
+                "tense and uncomfortable art",
+                "artwork expressing fear and nervousness"
+            ],
+            "Excited": [
+                "an energetic and dynamic artwork",
+                "bold and vibrant composition",
+                "artwork showing enthusiasm and energy",
+                "dynamic and lively art",
+                "artwork expressing excitement and vigor"
+            ]
         }
+        
+        # Precompute text embeddings for efficiency
+        self._precompute_text_embeddings()
     
-    def analyze_mood(self, image: np.ndarray) -> Tuple[str, float]:
-        """
-        Main mood analysis function that combines multiple analysis techniques.
-        """
-        try:
-            # Resize image for consistent analysis
-            if image.shape[0] > 400 or image.shape[1] > 400:
-                height, width = image.shape[:2]
-                scale = min(400/height, 400/width)
-                new_height, new_width = int(height * scale), int(width * scale)
-                image = cv2.resize(image, (new_width, new_height))
-            
-            # Perform different types of analysis
-            color_scores = self._analyze_colors(image)
-            composition_scores = self._analyze_composition(image)
-            texture_scores = self._analyze_texture(image)
-            
-            # Combine scores with weights
-            final_scores = {}
-            for mood in self.moods:
-                final_scores[mood] = (
-                    color_scores.get(mood, 0) * 0.5 +
-                    composition_scores.get(mood, 0) * 0.3 +
-                    texture_scores.get(mood, 0) * 0.2
-                )
-            
-            # Find the mood with highest score
-            predicted_mood = max(final_scores, key=final_scores.get)
-            confidence = final_scores[predicted_mood]
-            
-            # Normalize confidence to 0.6-0.95 range for realism
-            confidence = 0.6 + (confidence * 0.35)
-            
-            return predicted_mood, confidence
-            
-        except Exception as e:
-            logger.error(f"Error in mood analysis: {e}")
-            # Fallback to random prediction
-            return random.choice(self.moods), 0.7 + random.random() * 0.2
-    
-    def _analyze_colors(self, image: np.ndarray) -> Dict[str, float]:
-        """Analyze color distribution and properties"""
-        try:
-            # Convert to HSV for better color analysis
-            hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
-            
-            # Calculate color properties
-            hue = hsv[:,:,0].flatten()
-            saturation = hsv[:,:,1].flatten() / 255.0
-            value = hsv[:,:,2].flatten() / 255.0
-            
-            # Filter out very dark/light pixels
-            valid_pixels = (value > 0.1) & (value < 0.9) & (saturation > 0.1)
-            if np.sum(valid_pixels) == 0:
-                return {mood: 0.5 for mood in self.moods}
-            
-            valid_hue = hue[valid_pixels]
-            valid_sat = saturation[valid_pixels]
-            valid_val = value[valid_pixels]
-            
-            scores = {}
-            
-            # Happy: Warm colors (red, orange, yellow), high saturation
-            warm_hues = ((valid_hue >= 0) & (valid_hue <= 30)) | ((valid_hue >= 150) & (valid_hue <= 180))
-            warm_ratio = np.sum(warm_hues) / len(valid_hue)
-            avg_sat = np.mean(valid_sat)
-            avg_val = np.mean(valid_val)
-            scores["Happy"] = warm_ratio * 0.4 + avg_sat * 0.4 + avg_val * 0.2
-            
-            # Sad: Cool colors (blue, purple), low saturation, darker values
-            cool_hues = (valid_hue >= 80) & (valid_hue <= 140)
-            cool_ratio = np.sum(cool_hues) / len(valid_hue)
-            low_sat = 1 - avg_sat
-            low_val = 1 - avg_val
-            scores["Sad"] = cool_ratio * 0.4 + low_sat * 0.3 + low_val * 0.3
-            
-            # Calm: Green/blue hues, moderate saturation
-            calm_hues = (valid_hue >= 60) & (valid_hue <= 120)
-            calm_ratio = np.sum(calm_hues) / len(valid_hue)
-            moderate_sat = 1 - abs(avg_sat - 0.5) * 2
-            scores["Calm"] = calm_ratio * 0.5 + moderate_sat * 0.5
-            
-            # Angry: Red dominant, high saturation and contrast
-            red_hues = ((valid_hue >= 0) & (valid_hue <= 15)) | ((valid_hue >= 165) & (valid_hue <= 180))
-            red_ratio = np.sum(red_hues) / len(valid_hue)
-            high_sat = avg_sat
-            contrast = np.std(valid_val)
-            scores["Angry"] = red_ratio * 0.4 + high_sat * 0.3 + min(contrast * 3, 1) * 0.3
-            
-            return scores
-            
-        except Exception as e:
-            logger.error(f"Error in color analysis: {e}")
-            return {mood: 0.5 for mood in self.moods}
-    
-    def _analyze_composition(self, image: np.ndarray) -> Dict[str, float]:
-        """Analyze composition and spatial distribution"""
-        try:
-            gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-            
-            # Edge detection for complexity analysis
-            edges = cv2.Canny(gray, 50, 150)
-            edge_density = np.sum(edges > 0) / edges.size
-            
-            # Entropy for randomness
-            hist = cv2.calcHist([gray], [0], None, [256], [0, 256])
-            hist = hist / hist.sum()
-            entropy = -np.sum(hist * np.log2(hist + 1e-10))
-            
-            scores = {}
-            
-            # Happy: High complexity and entropy (active, energetic)
-            scores["Happy"] = min(edge_density * 5, 1) * 0.6 + min(entropy / 8, 1) * 0.4
-            
-            # Sad: Low complexity, more organized
-            scores["Sad"] = (1 - min(edge_density * 3, 1)) * 0.7 + (1 - min(entropy / 8, 1)) * 0.3
-            
-            # Calm: Moderate complexity, balanced
-            moderate_complexity = 1 - abs(edge_density * 5 - 0.5) * 2
-            scores["Calm"] = max(moderate_complexity, 0) * 0.8 + min(entropy / 8, 1) * 0.2
-            
-            # Angry: Very high complexity and chaos
-            scores["Angry"] = min(edge_density * 8, 1) * 0.5 + min(entropy / 6, 1) * 0.5
-            
-            return scores
-            
-        except Exception as e:
-            logger.error(f"Error in composition analysis: {e}")
-            return {mood: 0.5 for mood in self.moods}
-    
-    def _analyze_texture(self, image: np.ndarray) -> Dict[str, float]:
-        """Analyze texture and stroke patterns"""
-        try:
-            gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-            
-            # Sobel gradients for texture analysis
-            grad_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
-            grad_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
-            
-            # Gradient magnitude and direction
-            magnitude = np.sqrt(grad_x**2 + grad_y**2)
-            direction = np.arctan2(grad_y, grad_x)
-            
-            # Texture features
-            avg_magnitude = np.mean(magnitude)
-            direction_variance = np.var(direction)
-            
-            scores = {}
-            
-            # Happy: Smooth, flowing textures
-            scores["Happy"] = min(avg_magnitude / 50, 1) * 0.6 + (1 - min(direction_variance, 1)) * 0.4
-            
-            # Sad: Gentle, less pronounced textures
-            scores["Sad"] = (1 - min(avg_magnitude / 30, 1)) * 0.7 + (1 - min(direction_variance, 1)) * 0.3
-            
-            # Calm: Very smooth, minimal texture
-            scores["Calm"] = (1 - min(avg_magnitude / 20, 1)) * 0.8 + (1 - min(direction_variance, 1)) * 0.2
-            
-            # Angry: Rough, chaotic textures
-            scores["Angry"] = min(avg_magnitude / 40, 1) * 0.6 + min(direction_variance * 2, 1) * 0.4
-            
-            return scores
-            
-        except Exception as e:
-            logger.error(f"Error in texture analysis: {e}")
-            return {mood: 0.5 for mood in self.moods}
-    
-    def get_color_analysis(self, image: np.ndarray) -> Dict[str, Any]:
-        """Get detailed color analysis for frontend display"""
-        try:
-            hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
-            
-            # Dominant colors using k-means
-            pixels = image.reshape(-1, 3)
-            kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
-            kmeans.fit(pixels)
-            colors = kmeans.cluster_centers_.astype(int)
-            
-            return {
-                "dominant_colors": [
-                    {"r": int(c[0]), "g": int(c[1]), "b": int(c[2])} 
-                    for c in colors
-                ],
-                "color_temperature": "warm" if np.mean(hsv[:,:,0]) < 90 else "cool",
-                "average_saturation": float(np.mean(hsv[:,:,1]) / 255),
-                "average_brightness": float(np.mean(hsv[:,:,2]) / 255)
-            }
-        except Exception:
-            return {"error": "Could not analyze colors"}
-    
-    def get_stroke_analysis(self, image: np.ndarray) -> Dict[str, Any]:
-        """Get stroke pattern analysis"""
-        try:
-            gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-            edges = cv2.Canny(gray, 50, 150)
-            
-            return {
-                "stroke_density": float(np.sum(edges > 0) / edges.size),
-                "complexity": "high" if np.sum(edges > 0) / edges.size > 0.1 else "low",
-                "pattern": "chaotic" if np.var(gray) > 1000 else "organized"
-            }
-        except Exception:
-            return {"error": "Could not analyze strokes"}
-    
-    def get_composition_analysis(self, image: np.ndarray) -> Dict[str, Any]:
-        """Get composition analysis"""
-        try:
-            gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-            
-            # Center of mass
-            y_coords, x_coords = np.mgrid[0:gray.shape[0], 0:gray.shape[1]]
-            total_mass = np.sum(255 - gray)  # Inverted so drawing has mass
-            
-            if total_mass > 0:
-                center_x = np.sum((255 - gray) * x_coords) / total_mass
-                center_y = np.sum((255 - gray) * y_coords) / total_mass
+    def _precompute_text_embeddings(self):
+        """Precompute embeddings for all mood descriptions"""
+        self.mood_embeddings = {}
+        
+        with torch.no_grad():
+            for mood, descriptions in self.mood_descriptions.items():
+                # Tokenize all descriptions for this mood
+                text_tokens = clip.tokenize(descriptions).to(self.device)
                 
-                # Normalize to image center
-                center_x_norm = center_x / gray.shape[1] - 0.5
-                center_y_norm = center_y / gray.shape[0] - 0.5
-            else:
-                center_x_norm = center_y_norm = 0
+                # Get embeddings for all descriptions
+                text_embeddings = self.model.encode_text(text_tokens)
+                text_embeddings = text_embeddings / text_embeddings.norm(dim=-1, keepdim=True)
+                
+                # Average the embeddings for this mood
+                avg_embedding = text_embeddings.mean(dim=0)
+                avg_embedding = avg_embedding / avg_embedding.norm()
+                
+                self.mood_embeddings[mood] = avg_embedding
+        
+        logger.info(f"Precomputed embeddings for {len(self.mood_embeddings)} moods")
+    
+    def _prepare_image(self, image_array: np.ndarray) -> torch.Tensor:
+        """
+        Convert numpy image array to PIL Image and preprocess for CLIP
+        """
+        try:
+            # Convert BGR to RGB if needed
+            if len(image_array.shape) == 3 and image_array.shape[2] == 3:
+                image_array = cv2.cvtColor(image_array, cv2.COLOR_BGR2RGB)
+            
+            # Convert to PIL Image
+            if image_array.dtype != np.uint8:
+                image_array = (image_array * 255).astype(np.uint8)
+            
+            pil_image = Image.fromarray(image_array)
+            
+            # Preprocess for CLIP
+            image_tensor = self.preprocess(pil_image).unsqueeze(0).to(self.device)
+            
+            return image_tensor
+            
+        except Exception as e:
+            logger.error(f"Error preparing image: {e}")
+            raise
+    
+    def _calculate_cosine_similarities(self, image_embedding: torch.Tensor) -> Dict[str, float]:
+        """
+        Calculate cosine similarity between image embedding and each mood embedding
+        """
+        similarities = {}
+        
+        for mood, mood_embedding in self.mood_embeddings.items():
+            # Calculate cosine similarity
+            similarity = torch.cosine_similarity(
+                image_embedding.squeeze(), 
+                mood_embedding, 
+                dim=0
+            ).item()
+            
+            similarities[mood] = max(0.0, similarity)  # Ensure non-negative
+        
+        return similarities
+    
+    def analyze_mood(self, image_array: np.ndarray) -> Tuple[str, float]:
+        """
+        Analyze mood using CLIP embeddings and cosine similarity
+        
+        Args:
+            image_array: Input image as numpy array
+            
+        Returns:
+            Tuple of (predicted_mood, confidence_score)
+        """
+        try:
+            # Prepare image for CLIP
+            image_tensor = self._prepare_image(image_array)
+            
+            # Get image embedding
+            with torch.no_grad():
+                image_embedding = self.model.encode_image(image_tensor)
+                image_embedding = image_embedding / image_embedding.norm(dim=-1, keepdim=True)
+            
+            # Calculate similarities with all moods
+            similarities = self._calculate_cosine_similarities(image_embedding)
+            
+            # Find the mood with highest similarity
+            predicted_mood = max(similarities.keys(), key=lambda k: similarities[k])
+            confidence = similarities[predicted_mood]
+            
+            # Convert similarity to confidence percentage
+            # CLIP similarities are typically in range [0, 1], so we can use them directly
+            confidence_percentage = min(confidence * 100, 100.0)
+            
+            logger.info(f"CLIP Analysis - Mood: {predicted_mood}, Confidence: {confidence_percentage:.2f}%")
+            logger.debug(f"All similarities: {similarities}")
+            
+            return predicted_mood, confidence_percentage / 100.0
+            
+        except Exception as e:
+            logger.error(f"Error in CLIP mood analysis: {e}")
+            # Fallback to a default mood
+            return "Calm", 0.5
+    
+    def get_mood_analysis_details(self, image_array: np.ndarray) -> Dict:
+        """
+        Get detailed analysis including similarities for all moods
+        """
+        try:
+            image_tensor = self._prepare_image(image_array)
+            
+            with torch.no_grad():
+                image_embedding = self.model.encode_image(image_tensor)
+                image_embedding = image_embedding / image_embedding.norm(dim=-1, keepdim=True)
+            
+            similarities = self._calculate_cosine_similarities(image_embedding)
+            
+            # Sort by similarity score
+            sorted_moods = sorted(similarities.items(), key=lambda x: x[1], reverse=True)
             
             return {
-                "balance": "centered" if abs(center_x_norm) < 0.2 and abs(center_y_norm) < 0.2 else "off-center",
-                "coverage": float(np.sum(gray < 250) / gray.size),
-                "distribution": "even" if np.std(gray) < 50 else "varied"
+                "method": "CLIP Cosine Similarity",
+                "all_scores": similarities,
+                "ranked_moods": sorted_moods,
+                "top_mood": sorted_moods[0][0],
+                "confidence": sorted_moods[0][1],
+                "model_info": "OpenAI CLIP ViT-B/32"
             }
-        except Exception:
-            return {"error": "Could not analyze composition"}
+            
+        except Exception as e:
+            logger.error(f"Error getting detailed analysis: {e}")
+            return {
+                "method": "CLIP Cosine Similarity",
+                "error": str(e),
+                "fallback": True
+            }
     
-    def is_ready(self) -> bool:
-        """Check if the analyzer is ready"""
-        return self.ready 
+    def get_available_moods(self) -> List[str]:
+        """Return list of available mood categories"""
+        return list(self.mood_descriptions.keys())
+
+
+# Global instance
+mood_analyzer = None
+
+def get_mood_analyzer() -> CLIPMoodAnalyzer:
+    """Get global mood analyzer instance (singleton pattern)"""
+    global mood_analyzer
+    if mood_analyzer is None:
+        mood_analyzer = CLIPMoodAnalyzer()
+    return mood_analyzer
+
+# Legacy compatibility functions
+def analyze_mood(image_array: np.ndarray) -> Tuple[str, float]:
+    """Legacy function for backward compatibility"""
+    analyzer = get_mood_analyzer()
+    return analyzer.analyze_mood(image_array)
+
+def get_color_analysis(image_array: np.ndarray) -> Dict:
+    """Legacy function - now returns CLIP analysis"""
+    analyzer = get_mood_analyzer()
+    details = analyzer.get_mood_analysis_details(image_array)
+    return {
+        "method": "CLIP",
+        "scores": details.get("all_scores", {}),
+        "dominant_features": "semantic_understanding"
+    }
+
+def get_stroke_analysis(image_array: np.ndarray) -> Dict:
+    """Legacy function - now returns CLIP confidence metrics"""
+    analyzer = get_mood_analyzer()
+    details = analyzer.get_mood_analysis_details(image_array)
+    return {
+        "method": "CLIP_confidence",
+        "confidence_distribution": details.get("all_scores", {}),
+        "analysis_type": "semantic_similarity"
+    }
+
+def get_composition_analysis(image_array: np.ndarray) -> Dict:
+    """Legacy function - now returns CLIP ranking"""
+    analyzer = get_mood_analyzer()
+    details = analyzer.get_mood_analysis_details(image_array)
+    return {
+        "method": "CLIP_ranking",
+        "mood_ranking": details.get("ranked_moods", []),
+        "model": "ViT-B/32"
+    } 
