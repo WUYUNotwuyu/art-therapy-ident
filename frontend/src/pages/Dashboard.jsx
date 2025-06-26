@@ -40,7 +40,6 @@ const Dashboard = ({ changeCoins }) => {
     setLoading(true);
     
     try {
-      // Get canvas as blob
       const stage = document.querySelector('canvas');
       if (!stage) {
         throw new Error('No drawing found');
@@ -56,7 +55,6 @@ const Dashboard = ({ changeCoins }) => {
           setMood(result.mood);
           setConfidence(result.confidence);
           
-          // Save to history and award coins
           saveMoodHistory(result.mood, result.confidence);
           awardDailyCoins();
           

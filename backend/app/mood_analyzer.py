@@ -206,18 +206,20 @@ class CLIPMoodAnalyzer:
             sorted_moods = sorted(similarities.items(), key=lambda x: x[1], reverse=True)
             
             return {
-                "method": "CLIP Cosine Similarity",
+                "method": "CLIP_cosine_similarity",
+                "model": "ViT-B/32",
+                "device": self.device,
                 "all_scores": similarities,
                 "ranked_moods": sorted_moods,
-                "top_mood": sorted_moods[0][0],
-                "confidence": sorted_moods[0][1],
-                "model_info": "OpenAI CLIP ViT-B/32"
+                "top_prediction": sorted_moods[0][0] if sorted_moods else "Calm"
             }
             
         except Exception as e:
-            logger.error(f"Error getting detailed analysis: {e}")
+            logger.error(f"Error getting analysis details: {e}")
             return {
-                "method": "CLIP Cosine Similarity",
+                "method": "CLIP_cosine_similarity",
+                "model": "ViT-B/32",
+                "device": self.device,
                 "error": str(e),
                 "fallback": True
             }
@@ -248,9 +250,9 @@ def get_color_analysis(image_array: np.ndarray) -> Dict:
     analyzer = get_mood_analyzer()
     details = analyzer.get_mood_analysis_details(image_array)
     return {
-        "method": "CLIP",
-        "scores": details.get("all_scores", {}),
-        "dominant_features": "semantic_understanding"
+        "method": "CLIP_color_semantic",
+        "color_mood_correlation": details.get("all_scores", {}),
+        "primary_color_influence": "semantic_understanding"
     }
 
 def get_stroke_analysis(image_array: np.ndarray) -> Dict:
@@ -258,9 +260,9 @@ def get_stroke_analysis(image_array: np.ndarray) -> Dict:
     analyzer = get_mood_analyzer()
     details = analyzer.get_mood_analysis_details(image_array)
     return {
-        "method": "CLIP_confidence",
-        "confidence_distribution": details.get("all_scores", {}),
-        "analysis_type": "semantic_similarity"
+        "method": "CLIP_stroke_semantic", 
+        "stroke_mood_correlation": details.get("all_scores", {}),
+        "stroke_pattern_influence": "semantic_understanding"
     }
 
 def get_composition_analysis(image_array: np.ndarray) -> Dict:

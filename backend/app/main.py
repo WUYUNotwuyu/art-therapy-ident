@@ -49,9 +49,7 @@ async def predict_mood(
     image: UploadFile = File(...),
     user: Optional[User] = Depends(get_optional_user)
 ):
-    """
-    Analyze an artwork image and predict the mood
-    """
+    """Analyze an artwork image and predict the mood"""
     try:
         # Validate file type
         if not image.content_type.startswith('image/'):

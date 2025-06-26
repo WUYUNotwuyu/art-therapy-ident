@@ -1,21 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-
-// Validate that all required Firebase environment variables are present
-const requiredEnvVars = [
-  'VITE_FIREBASE_API_KEY',
-  'VITE_FIREBASE_AUTH_DOMAIN', 
-  'VITE_FIREBASE_PROJECT_ID',
-  'VITE_FIREBASE_STORAGE_BUCKET',
-  'VITE_FIREBASE_MESSAGING_SENDER_ID',
-  'VITE_FIREBASE_APP_ID'
-];
-
-const missingEnvVars = requiredEnvVars.filter(envVar => !import.meta.env[envVar]);
-
-if (missingEnvVars.length > 0) {
-  throw new Error(`Missing required Firebase environment variables: ${missingEnvVars.join(', ')}`);
-}
+import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -26,14 +10,9 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-// Initialize Firebase
+if (!firebaseConfig.apiKey || !firebaseConfig.authDomain || !firebaseConfig.projectId) {
+  throw new Error('Firebase configuration is missing. Please check your environment variables.');
+}
+
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const googleProvider = new GoogleAuthProvider();
-
-// Configure Google provider
-googleProvider.setCustomParameters({
-  prompt: 'select_account'
-});
-
-export { auth, googleProvider }; 
+export const auth = getAuth(app); 

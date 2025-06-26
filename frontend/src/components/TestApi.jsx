@@ -1,51 +1,54 @@
 import { useState } from 'react';
 import { ping } from '../utils/api';
+import { Activity } from 'lucide-react';
 
 const TestApi = () => {
-  const [status, setStatus] = useState('idle');
-  const [response, setResponse] = useState(null);
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  const testPing = async () => {
-    setStatus('loading');
+  const testConnection = async () => {
+    setLoading(true);
     try {
-      const data = await ping();
-      setResponse(data);
-      setStatus('success');
+      const response = await ping();
+      setStatus({ success: true, message: response.message });
     } catch (error) {
-      setResponse({ error: error.message });
-      setStatus('error');
+      setStatus({ success: false, message: error.message });
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="card">
-      <h3 className="text-lg font-semibold mb-4">API Connection Test</h3>
+      <h3 className="text-lg font-semibold mb-4">API Status</h3>
       
       <button
-        onClick={testPing}
-        disabled={status === 'loading'}
-        className="btn-primary mb-4"
+        onClick={testConnection}
+        disabled={loading}
+        className="w-full btn-secondary flex items-center justify-center space-x-2 mb-4"
       >
-        {status === 'loading' ? 'Testing...' : 'Test API Connection'}
+        {loading ? (
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+        ) : (
+          <Activity className="h-4 w-4" />
+        )}
+        <span>{loading ? 'Testing...' : 'Test Connection'}</span>
       </button>
 
-      {response && (
-        <div className="mt-4">
-          <h4 className="font-medium mb-2">Response:</h4>
-          <pre className="bg-gray-100 dark:bg-gray-800 p-3 rounded text-sm overflow-x-auto">
-            {JSON.stringify(response, null, 2)}
-          </pre>
+      {status && (
+        <div className={`p-3 rounded-lg text-sm ${
+          status.success 
+            ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' 
+            : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200'
+        }`}>
+          <div className="flex items-center space-x-2">
+            <span className="font-medium">
+              {status.success ? '✓' : '✗'}
+            </span>
+            <span>{status.message}</span>
+          </div>
         </div>
       )}
-
-      <div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
-        <p>API URL: {import.meta.env.VITE_API_URL || 'Not configured'}</p>
-        <p>Status: <span className={`font-medium ${
-          status === 'success' ? 'text-green-600' : 
-          status === 'error' ? 'text-red-600' : 
-          'text-gray-600'
-        }`}>{status}</span></p>
-      </div>
     </div>
   );
 };

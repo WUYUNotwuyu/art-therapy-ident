@@ -12,7 +12,6 @@ class ApiClient {
       throw new Error('No authenticated user');
     }
     
-    // Get fresh token
     const token = await auth.currentUser.getIdToken(true);
     localStorage.setItem('authToken', token);
     return token;
@@ -30,7 +29,6 @@ class ApiClient {
       ...options,
     };
 
-    // Handle FormData (for file uploads)
     if (options.body instanceof FormData) {
       delete config.headers['Content-Type'];
     }
@@ -38,13 +36,11 @@ class ApiClient {
     const response = await fetch(`${this.baseURL}${endpoint}`, config);
 
     if (response.status === 401) {
-      // Token expired, try to refresh
       try {
         const newToken = await this.getAuthToken();
         config.headers['Authorization'] = `Bearer ${newToken}`;
         return fetch(`${this.baseURL}${endpoint}`, config);
       } catch (error) {
-        // Refresh failed, redirect to login
         window.location.href = '/login';
         throw new Error('Authentication failed');
       }
@@ -88,7 +84,6 @@ class ApiClient {
 
 export const apiClient = new ApiClient();
 
-// Convenience methods for common API calls
 export const predictMood = async (imageFile) => {
   const formData = new FormData();
   formData.append('image', imageFile);

@@ -35,11 +35,11 @@ class Settings(BaseSettings):
 # Create global settings instance
 settings = Settings()
 
-def get_firebase_credentials():
-    """Get Firebase credentials dictionary"""
+def get_firebase_credentials() -> dict:
+    """Get Firebase credentials from environment variables"""
     if not settings.firebase_project_id:
         return None
-        
+    
     return {
         "type": "service_account",
         "project_id": settings.firebase_project_id,

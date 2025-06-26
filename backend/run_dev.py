@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-"""
-Development script to run the FastAPI backend locally
-"""
 
 import uvicorn
 import sys

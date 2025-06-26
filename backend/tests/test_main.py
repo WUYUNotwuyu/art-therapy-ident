@@ -46,11 +46,13 @@ def test_get_moods():
     data = response.json()
     assert "moods" in data
     assert "descriptions" in data
-    assert len(data["moods"]) == 4
+    assert len(data["moods"]) == 6
     assert "Happy" in data["moods"]
     assert "Sad" in data["moods"]
     assert "Calm" in data["moods"]
     assert "Angry" in data["moods"]
+    assert "Anxious" in data["moods"]
+    assert "Excited" in data["moods"]
 
 def test_predict_mood():
     """Test mood prediction with a test image"""
@@ -70,16 +72,14 @@ def test_predict_mood():
     assert "analysis_details" in data
     
     # Check mood is valid
-    assert data["mood"] in ["Happy", "Sad", "Calm", "Angry"]
+    assert data["mood"] in ["Happy", "Sad", "Calm", "Angry", "Anxious", "Excited"]
     
     # Check confidence is valid
     assert 0.0 <= data["confidence"] <= 1.0
     
     # Check analysis details structure
     details = data["analysis_details"]
-    assert "color_dominance" in details
-    assert "stroke_complexity" in details
-    assert "composition" in details
+    assert "method" in details
 
 def test_predict_mood_invalid_file():
     """Test mood prediction with invalid file type"""
