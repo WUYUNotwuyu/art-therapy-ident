@@ -6,8 +6,11 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install
+# Clear npm cache to handle architecture issues
+RUN npm cache clean --force
+
+# Install dependencies with legacy peer deps
+RUN npm install --legacy-peer-deps
 
 # Copy source code
 COPY . .
@@ -26,8 +29,11 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Clear npm cache and remove lock file to handle architecture issues
+RUN npm cache clean --force
+
+# Install dependencies with legacy peer deps to resolve rollup issues
+RUN npm install --legacy-peer-deps
 
 # Copy source code
 COPY . .

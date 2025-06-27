@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+python-multipart
+pillow
+opencv-python
+numpy
+python-jose[cryptography]
+firebase-admin
+pydantic
+pydantic-settings
+python-dotenv
+httpx
+scikit-learn
+torch
+torchvision
+transformers
+openai-clip

@@ -11,6 +11,7 @@ import {
 } from 'chart.js/auto';
 import { Line } from 'react-chartjs-2';
 import HistoryTable from '../components/HistoryTable';
+import { Calendar, TrendingUp, BarChart } from 'lucide-react';
 
 ChartJS.register(
   CategoryScale,
@@ -24,7 +25,29 @@ ChartJS.register(
 
 const History = () => {
   const [history, setHistory] = useState([]);
+  const [filter, setFilter] = useState('all');
   const [chartData, setChartData] = useState(null);
+
+  useEffect(() => {
+    const savedHistory = JSON.parse(localStorage.getItem('history') || '[]');
+    setHistory(savedHistory.reverse());
+  }, []);
+
+  const filteredHistory = filter === 'all' 
+    ? history 
+    : history.filter(entry => entry.mood === filter);
+
+  const moodCounts = history.reduce((acc, entry) => {
+    acc[entry.mood] = (acc[entry.mood] || 0) + 1;
+    return acc;
+  }, {});
+
+  const clearHistory = () => {
+    if (window.confirm('Are you sure you want to clear all history?')) {
+      localStorage.removeItem('history');
+      setHistory([]);
+    }
+  };
 
   useEffect(() => {
     const savedHistory = localStorage.getItem('history');
@@ -125,64 +148,123 @@ const History = () => {
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">Mood History</h1>
         <p className="text-gray-600 dark:text-gray-400">
-          Track your emotional journey over time
+          Track your emotional journey through art
         </p>
       </div>
 
       {history.length === 0 ? (
-        <div className="card text-center">
-          <div className="text-6xl mb-4">📈</div>
-          <h3 className="text-lg font-semibold mb-2">No Data Yet</h3>
+        <div className="text-center py-12">
+          <BarChart className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold mb-2">No mood history yet</h3>
           <p className="text-gray-600 dark:text-gray-400">
-            Start creating art to see your mood trends
+            Start drawing to see your mood analysis history here
           </p>
         </div>
       ) : (
-        <div className="space-y-8">
-          {chartData && (
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          <div className="lg:col-span-3">
             <div className="card">
-              <Line data={chartData} options={chartOptions} />
-            </div>
-          )}
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-semibold">Recent Analysis</h2>
+                <div className="flex space-x-2">
+                  <select
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                    className="input text-sm"
+                  >
+                    <option value="all">All Moods</option>
+                    <option value="Happy">Happy</option>
+                    <option value="Sad">Sad</option>
+                    <option value="Calm">Calm</option>
+                    <option value="Angry">Angry</option>
+                    <option value="Anxious">Anxious</option>
+                    <option value="Excited">Excited</option>
+                  </select>
+                  <button
+                    onClick={clearHistory}
+                    className="btn-secondary text-sm"
+                  >
+                    Clear History
+                  </button>
+                </div>
+              </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="card text-center">
-              <div className="text-2xl font-bold text-blue-600 mb-2">
-                {history.length}
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Total Sessions
-              </div>
-            </div>
-            
-            <div className="card text-center">
-              <div className="text-2xl font-bold text-green-600 mb-2">
-                {history.length > 0 ? Math.round(history.reduce((acc, h) => acc + h.confidence, 0) / history.length * 100) : 0}%
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Avg. Confidence
-              </div>
-            </div>
-            
-            <div className="card text-center">
-              <div className="text-2xl mb-2">
-                {history.length > 0 ? (() => {
-                  const moodCounts = history.reduce((acc, h) => {
-                    acc[h.mood] = (acc[h.mood] || 0) + 1;
-                    return acc;
-                  }, {});
-                  const mostCommon = Object.entries(moodCounts).sort(([,a], [,b]) => b - a)[0];
-                  const emojis = { Happy: '😊', Sad: '😢', Calm: '😌', Angry: '😠' };
-                  return emojis[mostCommon[0]] || '😐';
-                })() : '😐'}
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Most Common
+              <div className="space-y-4">
+                {filteredHistory.map((entry, index) => (
+                  <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="flex items-center space-x-2 mb-2">
+                          <span className="text-lg font-semibold">{entry.mood}</span>
+                          <span className="text-sm text-gray-500">
+                            {Math.round(entry.confidence * 100)}% confidence
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
+                          <Calendar className="h-4 w-4" />
+                          <span>{new Date(entry.timestamp).toLocaleString()}</span>
+                        </div>
+                      </div>
+                      <div className="w-20 h-2 bg-gray-200 dark:bg-gray-700 rounded-full">
+                        <div 
+                          className="h-2 bg-blue-500 rounded-full"
+                          style={{ width: `${entry.confidence * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
 
-          <HistoryTable />
+          <div className="space-y-6">
+            <div className="card">
+              <h3 className="text-lg font-semibold mb-4">Mood Summary</h3>
+              <div className="space-y-3">
+                {Object.entries(moodCounts)
+                  .sort(([,a], [,b]) => b - a)
+                  .map(([mood, count]) => (
+                    <div key={mood} className="flex justify-between items-center">
+                      <span className="text-sm">{mood}</span>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-16 h-2 bg-gray-200 dark:bg-gray-700 rounded-full">
+                          <div 
+                            className="h-2 bg-blue-500 rounded-full"
+                            style={{ width: `${(count / history.length) * 100}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-xs text-gray-500 w-8">{count}</span>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+
+            <div className="card">
+              <h3 className="text-lg font-semibold mb-4">Statistics</h3>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span>Total Drawings</span>
+                  <span className="font-medium">{history.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Most Common</span>
+                  <span className="font-medium">
+                    {Object.entries(moodCounts).sort(([,a], [,b]) => b - a)[0]?.[0] || 'None'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Avg Confidence</span>
+                  <span className="font-medium">
+                    {history.length > 0 
+                      ? Math.round((history.reduce((sum, entry) => sum + entry.confidence, 0) / history.length) * 100)
+                      : 0}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

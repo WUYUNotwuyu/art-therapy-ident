@@ -7,7 +7,7 @@ import Navbar from './components/Navbar';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import History from './pages/History';
-import useCoins from './hooks/useCoins';
+import { useCoins } from './hooks/useCoins';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -16,12 +16,6 @@ function App() {
   const { coins, changeCoins } = useCoins();
 
   useEffect(() => {
-    if (!auth) {
-      setUser({ displayName: 'Demo User', photoURL: null, uid: 'demo-user' });
-      setLoading(false);
-      return;
-    }
-
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setLoading(false);
@@ -49,33 +43,22 @@ function App() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen">
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/*" element={
-          <AuthGate user={user}>
-            <Navbar 
-              user={user} 
-              coins={coins} 
-              isDarkMode={isDarkMode} 
-              setIsDarkMode={setIsDarkMode} 
-            />
-            <main className={`${!auth ? 'pt-24' : 'pt-16'}`}>
-              <Routes>
-                <Route path="/" element={<Dashboard changeCoins={changeCoins} />} />
-                <Route path="/mood" element={<Dashboard changeCoins={changeCoins} />} />
-                <Route path="/history" element={<History />} />
-              </Routes>
-            </main>
-          </AuthGate>
-        } />
-      </Routes>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <AuthGate>
+        <Navbar user={user} coins={coins} isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} />
+        <main className="pt-4">
+          <Routes>
+            <Route path="/" element={<Dashboard changeCoins={changeCoins} />} />
+            <Route path="/history" element={<History />} />
+          </Routes>
+        </main>
+      </AuthGate>
     </div>
   );
 }

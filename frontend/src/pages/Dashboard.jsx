@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import DrawingCanvas from '../components/DrawingCanvas';
 import MoodCard from '../components/MoodCard';
 import TestApi from '../components/TestApi';
+import { predictMood } from '../utils/api';
 import { Brain } from 'lucide-react';
 
 const Dashboard = ({ changeCoins }) => {
@@ -35,11 +36,10 @@ const Dashboard = ({ changeCoins }) => {
     localStorage.setItem('history', JSON.stringify(history));
   };
 
-  const predictMood = async () => {
+  const handlePredictMood = async () => {
     setLoading(true);
     
     try {
-      // Get canvas as blob
       const stage = document.querySelector('canvas');
       if (!stage) {
         throw new Error('No drawing found');
@@ -50,38 +50,18 @@ const Dashboard = ({ changeCoins }) => {
           throw new Error('Failed to capture drawing');
         }
 
-        const formData = new FormData();
-        formData.append('image', blob, 'drawing.png');
-
         try {
-          const response = await fetch(`${import.meta.env.VITE_API_URL}/predict`, {
-            method: 'POST',
-            body: formData,
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const result = await response.json();
+          const result = await predictMood(blob);
           setMood(result.mood);
           setConfidence(result.confidence);
           
-          // Save to history and award coins
           saveMoodHistory(result.mood, result.confidence);
           awardDailyCoins();
           
+          console.log('Mood predicted successfully:', result.mood);
         } catch (error) {
           console.error('Error predicting mood:', error);
-          // Fallback for demo purposes
-          const mockMoods = ['Happy', 'Sad', 'Calm', 'Angry'];
-          const mockMood = mockMoods[Math.floor(Math.random() * mockMoods.length)];
-          const mockConfidence = 0.7 + Math.random() * 0.3;
-          
-          setMood(mockMood);
-          setConfidence(mockConfidence);
-          saveMoodHistory(mockMood, mockConfidence);
-          awardDailyCoins();
+          alert('Failed to analyze your drawing. Please try again.');
         } finally {
           setLoading(false);
         }
@@ -108,7 +88,7 @@ const Dashboard = ({ changeCoins }) => {
           
           <div className="mt-6 flex justify-center">
             <button
-              onClick={predictMood}
+              onClick={handlePredictMood}
               disabled={loading}
               className="btn-primary flex items-center space-x-2 px-8 py-3 text-lg"
             >

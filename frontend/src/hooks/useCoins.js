@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-const useCoins = () => {
+export const useCoins = () => {
   const [coins, setCoins] = useState(0);
 
   useEffect(() => {
@@ -17,6 +17,4 @@ const useCoins = () => {
   };
 
   return { coins, changeCoins };
-};
-
-export default useCoins; 
+}; 

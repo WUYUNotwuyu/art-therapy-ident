@@ -65,7 +65,6 @@ const DrawingCanvas = ({ onCanvasChange }) => {
     }
   };
 
-  // Expose methods to parent component
   DrawingCanvas.exportCanvas = () => exportCanvas();
   DrawingCanvas.exportBlob = (callback) => exportBlob(callback);
 
