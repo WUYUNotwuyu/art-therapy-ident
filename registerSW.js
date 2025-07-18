@@ -1,0 +1,1 @@
+if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/art-therapy-ident/sw.js', { scope: '/art-therapy-ident/' })})}
