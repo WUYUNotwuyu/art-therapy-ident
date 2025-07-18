@@ -1429,7 +1429,7 @@ Error generating stack: `+s.message+`
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */ga(VM,HM,"app");const qh={apiKey:"AIzaSyAP8Jbu9BPapNn4-lsWS2Ay27Wm7uIQtKs",authDomain:"recycle-ident.firebaseapp.com",projectId:"recycle-ident",storageBucket:"recycle-ident.firebasestorage.app",messagingSenderId:"715322121446",appId:"1:715322121446:web:8db8d2228d16bb45762f27"};if(!qh.apiKey||!qh.authDomain||!qh.projectId)throw new Error("Firebase configuration is missing. Please check your environment variables.");const WM=Rw(qh),Ma=UM(WM);/**
+ */ga(VM,HM,"app");const qh={apiKey:void 0,authDomain:void 0,projectId:void 0,storageBucket:void 0,messagingSenderId:void 0,appId:void 0};if(!qh.apiKey||!qh.authDomain||!qh.projectId)throw new Error("Firebase configuration is missing. Please check your environment variables.");const WM=Rw(qh),Ma=UM(WM);/**
  * @license lucide-react v0.303.0 - ISC
  *
  * This source code is licensed under the ISC license.
